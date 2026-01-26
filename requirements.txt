@@ -1,22 +1,15 @@
-# Core dependencies
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-google-api-python-client
-pyyaml
+# Google Chat API dependencies
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.0.0
 
-# Optional dependencies for semantic search
-# Uncomment these if you want to enable semantic search capabilities
-numpy>=1.19.0
-sentence-transformers>=2.2.0
-
-# Server components
-fastapi>=0.70.0
-uvicorn>=0.15.0
-httpx>=0.21.0
-
+# MCP Server
 fastmcp>=0.1.0
-google-api-core>=2.11.0
-fastapi>=0.95.0
+
+# Configuration
+pyyaml>=6.0
+
+# Development/Testing (optional)
 pytest>=7.0.0
-pytest-cov>=4.0.0 
+pytest-cov>=4.0.0
