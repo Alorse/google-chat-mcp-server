@@ -6,6 +6,7 @@ A lightweight MCP (Model Context Protocol) server for Google Chat integration. T
 
 - **Send messages** to Google Chat spaces
 - **Reply to threads** in existing conversations
+- **Quote replies** - reply with quoted message visible inline
 - **List messages** from spaces with filtering
 - **Search messages** using exact match or regex patterns
 - **Manage spaces** - list, create, and configure
@@ -87,7 +88,8 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 | Tool | Description |
 |------|-------------|
 | `send_message_tool` | Send a message to a space |
-| `reply_to_message_thread_tool` | Reply to an existing thread |
+| `reply_to_message_thread_tool` | Reply to an existing thread (collapsed) |
+| `quote_reply_tool` | Reply with quoted message inline (visible) |
 | `get_space_messages_tool` | List messages in a space |
 | `get_chat_message_tool` | Get a specific message |
 | `delete_chat_message_tool` | Delete a message |
