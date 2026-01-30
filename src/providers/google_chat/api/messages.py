@@ -562,6 +562,7 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
     Raises:
         Exception: If authentication fails or message creation fails
     """
+    debug_info = ""
     try:
         creds = get_credentials()
         if not creds:
@@ -575,6 +576,7 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
         ).execute()
 
         last_update_time = quoted_message.get('lastUpdateTime') or quoted_message.get('createTime')
+        debug_info = f"[lastUpdateTime={quoted_message.get('lastUpdateTime')}, createTime={quoted_message.get('createTime')}, using={last_update_time}]"
 
         # Build message body with quoted message metadata
         # Do NOT include thread - quote replies should appear in main conversation
@@ -595,7 +597,7 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
         return response
 
     except Exception as e:
-        raise Exception(f"Failed to create quote reply: {str(e)}")
+        raise Exception(f"Failed to create quote reply: {str(e)} {debug_info}")
 
 
 async def list_messages_with_sender_info(space_name: str,
