@@ -562,7 +562,9 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
     Raises:
         Exception: If authentication fails or message creation fails
     """
-    debug_info = ""
+    quoted_message = None
+    timestamp = None
+    message_body = None
     try:
         creds = get_credentials()
         if not creds:
@@ -570,21 +572,22 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
 
         service = build('chat', 'v1', credentials=creds)
 
-        # First, get the quoted message to extract lastUpdateTime
+        # Fetch the quoted message to get its exact timestamp
+        # Per Google API docs: lastUpdateTime is required and must match exactly
+        # Use lastUpdateTime if message was edited, otherwise use createTime
         quoted_message = service.spaces().messages().get(
             name=quoted_message_name
         ).execute()
 
-        last_update_time = quoted_message.get('lastUpdateTime') or quoted_message.get('createTime')
-        debug_info = f"[lastUpdateTime={quoted_message.get('lastUpdateTime')}, createTime={quoted_message.get('createTime')}, using={last_update_time}]"
+        # Use lastUpdateTime if present (edited message), otherwise createTime
+        timestamp = quoted_message.get('lastUpdateTime') or quoted_message.get('createTime')
 
         # Build message body with quoted message metadata
-        # Do NOT include thread - quote replies should appear in main conversation
         message_body = {
             "text": text,
             "quotedMessageMetadata": {
                 "name": quoted_message_name,
-                "lastUpdateTime": last_update_time
+                "lastUpdateTime": timestamp
             }
         }
 
@@ -597,7 +600,8 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
         return response
 
     except Exception as e:
-        raise Exception(f"Failed to create quote reply: {str(e)} {debug_info}")
+        debug = f"[timestamp={timestamp}, body={message_body}]"
+        raise Exception(f"Failed to create quote reply: {str(e)} DEBUG: {debug}")
 
 
 async def list_messages_with_sender_info(space_name: str,
