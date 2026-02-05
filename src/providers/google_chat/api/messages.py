@@ -551,6 +551,10 @@ async def get_message_with_sender_info(message_name: str) -> Dict:
 async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> Dict:
     """Sends a reply that quotes another message in a Google Chat space.
 
+    Implements retry with backoff to handle eventual consistency issues where
+    the message's internal version timestamp may differ from what we read
+    immediately after creation (e.g., due to link preview processing).
+
     Args:
         space_name: The name/identifier of the space to send the message to
         quoted_message_name: The full resource name of the message to quote (spaces/*/messages/*)
@@ -560,26 +564,26 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
         The created message object
 
     Raises:
-        Exception: If authentication fails or message creation fails
+        Exception: If authentication fails or message creation fails after retries
     """
-    quoted_message = None
-    timestamp = None
-    message_body = None
-    try:
-        creds = get_credentials()
-        if not creds:
-            raise Exception("No valid credentials found. Please authenticate first.")
+    import asyncio
 
-        service = build('chat', 'v1', credentials=creds)
+    creds = get_credentials()
+    if not creds:
+        raise Exception("No valid credentials found. Please authenticate first.")
 
-        # Fetch the quoted message to get its exact timestamp
-        # Per Google API docs: lastUpdateTime is required and must match exactly
-        # Use lastUpdateTime if message was edited, otherwise use createTime
+    service = build('chat', 'v1', credentials=creds)
+
+    last_exc = None
+
+    for attempt in range(5):
+        # Fetch the quoted message to get its latest timestamp
         quoted_message = service.spaces().messages().get(
             name=quoted_message_name
         ).execute()
 
-        # Use lastUpdateTime if present (edited message), otherwise createTime
+        # Message.lastUpdateTime = "edited by a user" (can be empty even if message version changed internally)
+        # For quoting, we need the latest version timestamp
         timestamp = quoted_message.get('lastUpdateTime') or quoted_message.get('createTime')
 
         # Build message body with quoted message metadata
@@ -591,17 +595,39 @@ async def quote_reply(space_name: str, quoted_message_name: str, text: str) -> D
             }
         }
 
-        # Make API request - no messageReplyOption to keep it in main conversation
-        response = service.spaces().messages().create(
-            parent=space_name,
-            body=message_body
-        ).execute()
+        # If the quoted message is a thread reply, we must reply in that same thread
+        thread_name = quoted_message.get("thread", {}).get("name")
+        if quoted_message.get("threadReply") and thread_name:
+            message_body["thread"] = {"name": thread_name}
 
-        return response
+        try:
+            if quoted_message.get("threadReply") and thread_name:
+                response = service.spaces().messages().create(
+                    parent=space_name,
+                    body=message_body,
+                    messageReplyOption="REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
+                ).execute()
+            else:
+                response = service.spaces().messages().create(
+                    parent=space_name,
+                    body=message_body
+                ).execute()
+            return response
 
-    except Exception as e:
-        debug = f"[timestamp={timestamp}, body={message_body}]"
-        raise Exception(f"Failed to create quote reply: {str(e)} DEBUG: {debug}")
+        except Exception as e:
+            last_exc = e
+            error_msg = str(e)
+
+            # Only retry the specific precondition failure (version mismatch)
+            if "Can't quote a message" not in error_msg or "last update time" not in error_msg:
+                raise
+
+            # Exponential backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms
+            await asyncio.sleep(0.2 * (2 ** attempt))
+
+    # All retries exhausted
+    debug_info = f"[attempts=5, last_timestamp={timestamp}, createTime={quoted_message.get('createTime')}, lastUpdateTime={quoted_message.get('lastUpdateTime')}, annotations={bool(quoted_message.get('annotations'))}]"
+    raise Exception(f"Failed to create quote reply after retries: {last_exc} DEBUG: {debug_info}")
 
 
 async def list_messages_with_sender_info(space_name: str,
