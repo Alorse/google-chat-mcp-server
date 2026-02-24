@@ -7,6 +7,10 @@ google-api-python-client>=2.0.0
 # MCP Server
 fastmcp>=0.1.0
 
+# API Server
+fastapi>=0.100.0
+uvicorn>=0.20.0
+
 # Configuration
 pyyaml>=6.0
 
