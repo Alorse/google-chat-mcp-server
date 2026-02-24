@@ -124,18 +124,8 @@ def main():
         # Debug info
         logger.info(f"Initializing {mcp.name}...")
 
-        # Get and print registered tools from MCP instance
-        mcp_tools = asyncio.run(mcp.get_tools())
-
         # Get tools from central registry
         registry_tools = get_all_registry_tools()
-
-        if mcp_tools:
-            logger.info(f"Successfully registered {len(mcp_tools)} tools with MCP instance:")
-            for name, tool in mcp_tools.items():
-                logger.info(f"- {name}")
-        else:
-            logger.warning("No tools were registered with MCP instance!")
 
         if registry_tools:
             logger.info(f"Successfully registered {len(registry_tools)} tools with central registry:")
