@@ -11,6 +11,7 @@ A lightweight MCP (Model Context Protocol) server for Google Chat integration. T
 - **Search messages** using exact match or regex patterns
 - **Manage spaces** - list, create, and configure
 - **User management** - get user info and member lists
+- **Unread messages** - track and manage read states across spaces
 
 ## Installation
 
@@ -54,7 +55,11 @@ Minimal dependencies:
 
 When setting up OAuth, ensure these scopes are enabled:
 - `https://www.googleapis.com/auth/chat.messages` - Read and send messages
+- `https://www.googleapis.com/auth/chat.messages.create` - Create messages
 - `https://www.googleapis.com/auth/chat.spaces` - Access spaces
+- `https://www.googleapis.com/auth/chat.spaces.readonly` - Read spaces
+- `https://www.googleapis.com/auth/chat.users.readstate.readonly` - Read message read state
+- `https://www.googleapis.com/auth/chat.users.readstate` - Update message read state (mark as read)
 
 ### 4. Authenticate
 
@@ -95,6 +100,11 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 | `delete_chat_message_tool` | Delete a message |
 | `get_chat_spaces_tool` | List available spaces |
 | `search_chat_messages_tool` | Search messages (exact/regex) |
+| `get_unread_messages_tool` | Get unread messages from a space |
+| `get_unread_conversations_tool` | List all conversations with unread messages |
+| `find_dm_with_user_tool` | Find direct message space with a user |
+| `mark_space_as_read_tool` | Mark all messages in a space as read |
+| `get_space_read_state_tool` | Get the read state of a space |
 
 ### Example
 
@@ -124,6 +134,42 @@ This lightweight version supports:
 | `hybrid` | Combines exact and regex results |
 
 **Note:** Semantic search (ML-based) is not available in this version. If you request semantic mode, it will gracefully fall back to exact search.
+
+## Unread Messages
+
+Track and manage unread messages across your Google Chat spaces:
+
+| Tool | Description |
+|------|-------------|
+| `get_unread_messages_tool` | Get unread messages from a specific space |
+| `get_unread_conversations_tool` | List all conversations with unread counts |
+| `find_dm_with_user_tool` | Find DM space with a specific user by email |
+| `mark_space_as_read_tool` | Mark a space as read (updates last read time) |
+| `get_space_read_state_tool` | Check when you last read a space |
+
+### Example: Check Unread Messages
+
+```python
+# Get unread messages from a space
+unread = get_unread_messages_tool(
+    space_name="spaces/AAQAtjsc9v4",
+    max_results=10
+)
+
+# List all conversations with unread messages
+conversations = get_unread_conversations_tool()
+for conv in conversations['conversations']:
+    print(f"{conv['display_name']}: {conv['unread_count']} unread")
+
+# Find DM with a user and check unread messages
+dm = find_dm_with_user_tool(user_email="colleague@company.com")
+unread_dm = get_unread_messages_tool(space_name=dm['name'])
+
+# Mark a space as read after reviewing
+mark_space_as_read_tool(space_name="spaces/AAQAtjsc9v4")
+```
+
+**Note:** These features require additional OAuth scopes. You may need to re-authenticate after upgrading.
 
 ## Configuration
 
