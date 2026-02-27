@@ -273,21 +273,24 @@ async def get_unread_conversations_tool(
     all_spaces = await list_chat_spaces()
     logger.info(f"Scanning {len(all_spaces)} spaces for unread messages")
 
-    conversations_with_unread = []
-    total_scanned = 0
-
+    # Filter spaces first based on arguments
+    filtered_spaces = []
     for space in all_spaces:
-        space_name = space.get('name', '')
         space_type = space.get('spaceType', 'SPACE')
-        display_name = space.get('displayName', 'Unnamed Space')
-
-        # Skip based on filter settings
         if space_type == 'DIRECT_MESSAGE' and not include_dms:
             continue
         if space_type != 'DIRECT_MESSAGE' and not include_spaces:
             continue
+        filtered_spaces.append(space)
 
-        total_scanned += 1
+    total_scanned = len(filtered_spaces)
+    logger.info(f"Processing {total_scanned} spaces after filtering")
+
+    async def process_space(space):
+        space_name = space.get('name', '')
+        space_type = space.get('spaceType', 'SPACE')
+        display_name = space.get('displayName', 'Unnamed Space')
+        last_active_time = space.get('lastActiveTime')
 
         try:
             # Get read state for this space
@@ -299,12 +302,17 @@ async def get_unread_conversations_tool(
                 last_read_time = "1970-01-01T00:00:00.000Z"
 
             last_read_dt = _parse_timestamp(last_read_time)
+            last_active_dt = _parse_timestamp(last_active_time) if last_active_time else None
 
-            # Get recent messages (limit to 20 for performance)
+            # HUGE OPTIMIZATION: If last_active_time <= last_read_time, SKIP pulling messages
+            if last_active_dt and last_read_dt and last_active_dt <= last_read_dt:
+                return None
+
+            # Get recent messages (limit to 10 for performance)
             messages_result = await list_space_messages(
                 space_name=space_name,
                 include_sender_info=False,
-                page_size=20,
+                page_size=10,
                 order_by="createTime desc"
             )
 
@@ -328,9 +336,9 @@ async def get_unread_conversations_tool(
                                 if text:
                                     latest_message_preview = text[:100] + ('...' if len(text) > 100 else '')
 
-            # Only include if there are unread messages
+            # Only include if there are actual unread messages
             if unread_count > 0:
-                conversations_with_unread.append({
+                return {
                     "space_name": space_name,
                     "display_name": display_name,
                     "space_type": space_type,
@@ -338,11 +346,27 @@ async def get_unread_conversations_tool(
                     "unread_count": unread_count,
                     "latest_message_time": latest_message_time,
                     "preview": latest_message_preview
-                })
+                }
+            return None
 
         except Exception as e:
             logger.warning(f"Failed to check read state for {space_name}: {str(e)}")
-            continue
+            return None
+
+    import asyncio
+    # Control concurrency so we don't spam Google APIs and get rate-limited
+    semaphore = asyncio.Semaphore(15)
+
+    async def sem_process(space):
+        async with semaphore:
+            return await process_space(space)
+
+    # Process all spaces concurrently
+    tasks = [sem_process(space) for space in filtered_spaces]
+    results = await asyncio.gather(*tasks)
+
+    # Filter out empty results (spaces with no unread messages or failed checks)
+    conversations_with_unread = [r for r in results if r is not None]
 
     # Sort by unread count (descending) and limit results
     conversations_with_unread.sort(key=lambda x: x['unread_count'], reverse=True)
