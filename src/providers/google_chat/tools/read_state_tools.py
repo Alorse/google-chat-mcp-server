@@ -194,10 +194,11 @@ async def get_unread_messages_tool(
 @tool()
 async def get_unread_conversations_tool(
     include_dms: bool = True,
-    include_spaces: bool = True,
+    include_groups: bool = True,
+    include_spaces: bool = False,
     max_results: int = 20
 ) -> dict:
-    """List all conversations (spaces and DMs) with unread messages.
+    """List all conversations (DMs, Groups, and Spaces) with unread messages.
 
     Scans all accessible spaces and identifies those with unread messages.
     This is useful for getting an overview of all conversations that need
@@ -218,8 +219,10 @@ async def get_unread_conversations_tool(
     Args:
         include_dms: Whether to include direct message conversations in the
                     results (default: True)
-        include_spaces: Whether to include regular spaces (rooms) in the
+        include_groups: Whether to include group chat conversations in the
                        results (default: True)
+        include_spaces: Whether to include regular spaces (rooms) in the
+                       results (default: False)
         max_results: Maximum number of conversations with unread messages to
                     return (default: 20). This limits the result set, not the
                     number of spaces scanned.
@@ -249,15 +252,21 @@ async def get_unread_conversations_tool(
            print(f"{conv['display_name']}: {conv['unread_count']} unread")
        ```
 
-    2. Get only spaces (excluding DMs) with unread messages:
+    2. Get only regular spaces (rooms) with unread messages:
        ```python
        result = get_unread_conversations_tool(
            include_dms=False,
+           include_groups=False,
            include_spaces=True
        )
        ```
 
-    3. Get a quick overview of top priority conversations:
+    3. Get all group chats and DMs (default):
+       ```python
+       result = get_unread_conversations_tool()
+       ```
+
+    4. Get a quick overview of top priority conversations:
        ```python
        result = get_unread_conversations_tool(max_results=5)
        if result['conversations_with_unread'] > 0:
@@ -279,7 +288,9 @@ async def get_unread_conversations_tool(
         space_type = space.get('spaceType', 'SPACE')
         if space_type == 'DIRECT_MESSAGE' and not include_dms:
             continue
-        if space_type != 'DIRECT_MESSAGE' and not include_spaces:
+        if space_type == 'GROUP_CHAT' and not include_groups:
+            continue
+        if space_type == 'SPACE' and not include_spaces:
             continue
         filtered_spaces.append(space)
 
